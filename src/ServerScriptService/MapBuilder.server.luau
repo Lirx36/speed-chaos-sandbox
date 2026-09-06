@@ -8,7 +8,8 @@ if Workspace:FindFirstChild("GeneratedMap") then
 	return
 end
 
-local FLOOR_SIZE = 8192 -- was 2048; the world is ~16x bigger now
+local WORLD_SIZE = 16384 -- distance between the perimeter walls
+local FLOOR_OVERHANG = 8000 -- floor extends this far past the walls on every side
 local CITY_EXTENT = 3200 -- buildings fill roughly this radius; open ground beyond it
 local LANE_HALF = 280 -- half-width of the clear speed lanes through the middle (X and Z)
 
@@ -34,10 +35,11 @@ local function rand(a: number, b: number): number
 	return a + math.random() * (b - a)
 end
 
--- floor
+-- floor (bigger than the walled area so you never run out of ground)
+local floorSpan = WORLD_SIZE + FLOOR_OVERHANG * 2
 part({
 	Name = "Floor",
-	Size = Vector3.new(FLOOR_SIZE, 4, FLOOR_SIZE),
+	Size = Vector3.new(floorSpan, 4, floorSpan),
 	Position = Vector3.new(0, 0, 0),
 	Color = Color3.fromRGB(52, 57, 64),
 	Material = Enum.Material.SmoothPlastic,
@@ -54,12 +56,12 @@ spawn.Material = Enum.Material.Neon
 spawn.Parent = map
 
 -- glass perimeter walls
-local halfFloor = FLOOR_SIZE / 2
+local halfWorld = WORLD_SIZE / 2
 for i, dir in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) } do
 	part({
 		Name = "Wall" .. i,
-		Size = Vector3.new(math.abs(dir.Z) * FLOOR_SIZE + 12, 240, math.abs(dir.X) * FLOOR_SIZE + 12),
-		Position = dir * halfFloor + Vector3.new(0, 120, 0),
+		Size = Vector3.new(math.abs(dir.Z) * WORLD_SIZE + 12, 240, math.abs(dir.X) * WORLD_SIZE + 12),
+		Position = dir * halfWorld + Vector3.new(0, 120, 0),
 		Color = Color3.fromRGB(40, 44, 50),
 		Transparency = 0.55,
 		Material = Enum.Material.Glass,
