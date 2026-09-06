@@ -1,10 +1,10 @@
 # Speed Chaos Sandbox
 
-A Roblox sandbox where the fun *is* going stupid fast. Keep moving to build **momentum**
-(bonus WalkSpeed that stacks up), hold **Shift** to sprint, **double-jump**, and get flung
-around by launch pads, bumpers, and speed rings. Momentum has no cap — it charges up
-forever while you keep moving. There's an optional gamepass that makes it charge faster —
-a normal perk, not a paywall.
+A Roblox sandbox where the fun *is* going stupid fast. Build **momentum** (bonus WalkSpeed
+that stacks up) and control it directly with three buttons / keys **1 2 3** — FASTER, HOLD,
+SLOWER. Hold **Shift** to sprint, **double-jump**, and get flung around by launch pads,
+bumpers, and speed rings. Momentum has no cap — in FASTER mode it just keeps climbing.
+There's an optional gamepass that makes it charge faster — a normal perk, not a paywall.
 
 ## What's in here
 
@@ -85,17 +85,17 @@ rojo serve
 | Move | WASD | Left stick |
 | Sprint (hold) | Left Shift | L3 (click left stick) |
 | Jump / double-jump | Space (twice) | A (twice) |
+| Momentum FASTER / HOLD / SLOWER | 1 / 2 / 3 (or the on-screen buttons) | on-screen buttons |
 
 ## Tuning
 
 Everything is in `src/ReplicatedStorage/Config.luau`. Common tweaks:
 
-- **Momentum has no ceiling** — it charges up forever while you keep moving, so WalkSpeed
-  can get absurd and the HUD % counts past 100 indefinitely. Roblox physics starts missing
-  thin walls past ~200 speed; if that bugs you, set `MomentumHardCap` to a number (e.g. 150)
-  instead of `math.huge`.
-- **Momentum builds too slowly:** raise `MomentumGainPerSec`, lower `MomentumMoveThreshold`.
-- **Momentum drains too fast / slow when you stop:** `MomentumDecayPerSec` (flat) and
+- **Momentum has no ceiling** — in FASTER mode it climbs forever and the HUD % counts past
+  100 indefinitely. Roblox physics starts missing thin walls past ~200 speed; if that bugs
+  you, set `MomentumHardCap` to a number (e.g. 150) instead of `math.huge`.
+- **FASTER ramps too slow:** raise `MomentumGainPerSec`.
+- **SLOWER bleeds off too fast / slow:** `MomentumDecayPerSec` (flat) and
   `MomentumDecayFraction` (proportional — matters most when you're going fast).
 - **Launch pads too weak/strong:** `LaunchPadPower`.
 

@@ -16,12 +16,19 @@ local sprintEvent = Instance.new("RemoteEvent")
 sprintEvent.Name = "SetSprint" -- client -> server, hold-to-sprint
 sprintEvent.Parent = ReplicatedStorage
 
+local modeEvent = Instance.new("RemoteEvent")
+modeEvent.Name = "SetMomentumMode" -- client -> server: "Gain" | "Hold" | "Drain"
+modeEvent.Parent = ReplicatedStorage
+
 local addMomentum = Instance.new("BindableEvent")
 addMomentum.Name = "AddMomentum" -- other server scripts fire this (e.g. speed rings)
 addMomentum.Parent = ServerStorage
 
-type State = { momentum: number, sprinting: boolean }
+type State = { momentum: number, sprinting: boolean, mode: string }
 local states: { [Player]: State } = {}
+
+local VALID_MODES = { Gain = true, Hold = true, Drain = true }
+local DEFAULT_MODE = "Gain"
 
 local function gainMultiplier(player: Player): number
 	return player:GetAttribute("HasMomentumPass") and Config.PassGainMultiplier or 1
@@ -39,7 +46,7 @@ local function onCharacter(player: Player, char: Model)
 end
 
 Players.PlayerAdded:Connect(function(player)
-	states[player] = { momentum = 0, sprinting = false }
+	states[player] = { momentum = 0, sprinting = false, mode = DEFAULT_MODE }
 	player.CharacterAdded:Connect(function(char)
 		onCharacter(player, char)
 	end)
@@ -59,6 +66,13 @@ sprintEvent.OnServerEvent:Connect(function(player, wantSprint)
 	end
 end)
 
+modeEvent.OnServerEvent:Connect(function(player, mode)
+	local st = states[player]
+	if st and VALID_MODES[mode] then
+		st.mode = mode
+	end
+end)
+
 addMomentum.Event:Connect(function(player: Player, amount: number)
 	local st = states[player]
 	if st then
@@ -71,20 +85,18 @@ RunService.Heartbeat:Connect(function(dt)
 	for player, st in states do
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not (hum and root) or hum.Health <= 0 then
+		if not hum or hum.Health <= 0 then
 			continue
 		end
 
-		local vel = root.AssemblyLinearVelocity
-		local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
-
-		if horizontal >= Config.MomentumMoveThreshold then
+		-- momentum only changes according to the player's chosen mode
+		if st.mode == "Gain" then
 			st.momentum += Config.MomentumGainPerSec * gainMultiplier(player) * dt
-		else
+		elseif st.mode == "Drain" then
 			local drain = math.max(Config.MomentumDecayPerSec, st.momentum * Config.MomentumDecayFraction)
 			st.momentum -= drain * dt
 		end
+		-- "Hold" leaves momentum exactly where it is
 		st.momentum = math.clamp(st.momentum, 0, Config.MomentumHardCap)
 
 		local target = Config.BaseWalkSpeed + st.momentum
@@ -99,7 +111,7 @@ RunService.Heartbeat:Connect(function(dt)
 		broadcastAccum = 0
 		for player, st in states do
 			local percent = st.momentum / Config.MomentumPercentReference * 100
-			momentumUpdate:FireClient(player, st.momentum, percent)
+			momentumUpdate:FireClient(player, st.momentum, percent, st.mode)
 		end
 	end
 end)
