@@ -1,0 +1,103 @@
+--!strict
+-- Core movement: builds "momentum" while you keep moving and turns it into raw WalkSpeed.
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+
+-- remotes / bindables other scripts and the HUD use
+local momentumUpdate = Instance.new("RemoteEvent")
+momentumUpdate.Name = "MomentumUpdate" -- server -> client, for the HUD bar
+momentumUpdate.Parent = ReplicatedStorage
+
+local sprintEvent = Instance.new("RemoteEvent")
+sprintEvent.Name = "SetSprint" -- client -> server, hold-to-sprint
+sprintEvent.Parent = ReplicatedStorage
+
+local addMomentum = Instance.new("BindableEvent")
+addMomentum.Name = "AddMomentum" -- other server scripts fire this (e.g. speed rings)
+addMomentum.Parent = ServerStorage
+
+type State = { momentum: number, sprinting: boolean }
+local states: { [Player]: State } = {}
+
+local function maxMomentum(player: Player): number
+	return player:GetAttribute("HasMomentumPass") and Config.MomentumMaxWithPass or Config.MomentumMax
+end
+
+local function onCharacter(player: Player, char: Model)
+	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	hum.UseJumpPower = Config.UseJumpPower
+	hum.JumpPower = Config.JumpPower
+	hum.WalkSpeed = Config.BaseWalkSpeed
+	local st = states[player]
+	if st then
+		st.momentum = 0
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	states[player] = { momentum = 0, sprinting = false }
+	player.CharacterAdded:Connect(function(char)
+		onCharacter(player, char)
+	end)
+	if player.Character then
+		onCharacter(player, player.Character)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	states[player] = nil
+end)
+
+sprintEvent.OnServerEvent:Connect(function(player, wantSprint)
+	local st = states[player]
+	if st then
+		st.sprinting = wantSprint == true
+	end
+end)
+
+addMomentum.Event:Connect(function(player: Player, amount: number)
+	local st = states[player]
+	if st then
+		st.momentum = math.clamp(st.momentum + amount, 0, maxMomentum(player))
+	end
+end)
+
+local broadcastAccum = 0
+RunService.Heartbeat:Connect(function(dt)
+	for player, st in states do
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not (hum and root) or hum.Health <= 0 then
+			continue
+		end
+
+		local vel = root.AssemblyLinearVelocity
+		local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
+
+		if horizontal >= Config.MomentumMoveThreshold then
+			st.momentum += Config.MomentumGainPerSec * dt
+		else
+			st.momentum -= Config.MomentumDecayPerSec * dt
+		end
+		st.momentum = math.clamp(st.momentum, 0, maxMomentum(player))
+
+		local target = Config.BaseWalkSpeed + st.momentum
+		if st.sprinting then
+			target += Config.SprintBonus
+		end
+		hum.WalkSpeed = target
+	end
+
+	broadcastAccum += dt
+	if broadcastAccum >= 0.1 then
+		broadcastAccum = 0
+		for player, st in states do
+			momentumUpdate:FireClient(player, st.momentum, maxMomentum(player))
+		end
+	end
+end)

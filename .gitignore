@@ -1,0 +1,12 @@
+# Roblox place files (binary — don't commit; the source of truth is src/)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# build output
+/build/
+
+# OS
+.DS_Store
+Thumbs.db
