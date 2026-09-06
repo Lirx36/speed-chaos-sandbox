@@ -43,29 +43,6 @@ spawn.Color = Color3.fromRGB(120, 200, 255)
 spawn.Material = Enum.Material.Neon
 spawn.Parent = map
 
--- giant floating TEST sign (live-sync check)
-do
-	local anchor = part({
-		Name = "SignAnchor",
-		Size = Vector3.new(1, 1, 1),
-		Position = Vector3.new(0, 90, 0),
-		Transparency = 1,
-		CanCollide = false,
-	})
-	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromScale(60, 20)
-	bb.AlwaysOnTop = true
-	bb.Parent = anchor
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.fromScale(1, 1)
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.GothamBlack
-	text.TextScaled = true
-	text.TextColor3 = Color3.fromRGB(255, 80, 200)
-	text.Text = "TEST"
-	text.Parent = bb
-end
-
 -- glass perimeter walls
 local dirs = { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) }
 for i, dir in dirs do
