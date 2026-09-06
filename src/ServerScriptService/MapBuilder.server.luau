@@ -1,5 +1,5 @@
 --!strict
--- Builds a big city sandbox at runtime so the place is playable immediately.
+-- Builds the sandbox map at runtime so the place is playable immediately.
 -- Delete this script once you've built your own map in Studio.
 local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
@@ -8,24 +8,38 @@ if Workspace:FindFirstChild("GeneratedMap") then
 	return
 end
 
-local WORLD_SIZE = 16384 -- distance between the perimeter walls
-local FLOOR_OVERHANG = 8000 -- floor extends this far past the walls on every side
-local CITY_EXTENT = 3200 -- buildings fill roughly this radius; open ground beyond it
-local LANE_HALF = 280 -- half-width of the clear speed lanes through the middle (X and Z)
+-- Roblox hard-caps a Part at 2048 studs on any axis. Anything "huge" MUST be tiled.
+local PART_MAX = 2048
+
+local TILE = 2000 -- floor / wall tile length (kept under PART_MAX)
+local GROUND_TILES = 6 -- tiles out from centre in each direction
+local WALL_INSET = TILE -- walls sit this far inside the floor edge
+local WALL_HALF = TILE * GROUND_TILES - WALL_INSET + TILE / 2 -- ~11000 studs
+local WALL_HEIGHT = 250
+
+local CITY_HALF = 3000 -- buildings fill this radius
+local CITY_STEP = 600
+local LANE_HALF = 300 -- half-width of the clear cross-lanes through the middle
 
 local map = Instance.new("Folder")
 map.Name = "GeneratedMap"
 map.Parent = Workspace
 
-math.randomseed(1337) -- fixed seed: the city looks the same every run
+math.randomseed(1337) -- fixed seed: same city every run
 
 local function part(props: { [string]: any }): BasePart
 	local p = Instance.new("Part")
 	p.Anchored = true
+	p.CastShadow = false
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	for k, v in props do
 		(p :: any)[k] = v
+	end
+	local s = p.Size
+	if s.X > PART_MAX or s.Y > PART_MAX or s.Z > PART_MAX then
+		warn(("MapBuilder: '%s' size %s exceeds the %d-stud part limit and will be clamped")
+			:format(p.Name, tostring(s), PART_MAX))
 	end
 	p.Parent = map
 	return p
@@ -35,17 +49,21 @@ local function rand(a: number, b: number): number
 	return a + math.random() * (b - a)
 end
 
--- floor (bigger than the walled area so you never run out of ground)
-local floorSpan = WORLD_SIZE + FLOOR_OVERHANG * 2
-part({
-	Name = "Floor",
-	Size = Vector3.new(floorSpan, 4, floorSpan),
-	Position = Vector3.new(0, 0, 0),
-	Color = Color3.fromRGB(52, 57, 64),
-	Material = Enum.Material.SmoothPlastic,
-})
+-- FLOOR: a grid of tiles (one giant part is impossible, see PART_MAX)
+for tx = -GROUND_TILES, GROUND_TILES do
+	for tz = -GROUND_TILES, GROUND_TILES do
+		part({
+			Name = "FloorTile",
+			Size = Vector3.new(TILE, 4, TILE),
+			Position = Vector3.new(tx * TILE, 0, tz * TILE),
+			Color = Color3.fromRGB(52, 57, 64),
+			Material = Enum.Material.SmoothPlastic,
+		})
+	end
+end
+local floorEdge = (GROUND_TILES + 0.5) * TILE -- ~13000 studs from centre to the real edge
 
--- spawn
+-- SPAWN
 local spawn = Instance.new("SpawnLocation")
 spawn.Name = "Spawn"
 spawn.Anchored = true
@@ -55,20 +73,28 @@ spawn.Color = Color3.fromRGB(120, 200, 255)
 spawn.Material = Enum.Material.Neon
 spawn.Parent = map
 
--- glass perimeter walls
-local halfWorld = WORLD_SIZE / 2
-for i, dir in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) } do
-	part({
-		Name = "Wall" .. i,
-		Size = Vector3.new(math.abs(dir.Z) * WORLD_SIZE + 12, 240, math.abs(dir.X) * WORLD_SIZE + 12),
-		Position = dir * halfWorld + Vector3.new(0, 120, 0),
-		Color = Color3.fromRGB(40, 44, 50),
-		Transparency = 0.55,
-		Material = Enum.Material.Glass,
-	})
+-- WALLS: tiled glass segments, set inside the floor edge so ground shows past them
+for t = -GROUND_TILES, GROUND_TILES do
+	local a = t * TILE
+	local segs = {
+		{ Vector3.new(a, WALL_HEIGHT / 2, WALL_HALF), Vector3.new(TILE, WALL_HEIGHT, 12) },
+		{ Vector3.new(a, WALL_HEIGHT / 2, -WALL_HALF), Vector3.new(TILE, WALL_HEIGHT, 12) },
+		{ Vector3.new(WALL_HALF, WALL_HEIGHT / 2, a), Vector3.new(12, WALL_HEIGHT, TILE) },
+		{ Vector3.new(-WALL_HALF, WALL_HEIGHT / 2, a), Vector3.new(12, WALL_HEIGHT, TILE) },
+	}
+	for _, seg in segs do
+		part({
+			Name = "Wall",
+			Position = seg[1],
+			Size = seg[2],
+			Color = Color3.fromRGB(40, 44, 50),
+			Transparency = 0.55,
+			Material = Enum.Material.Glass,
+		})
+	end
 end
 
--- city of tiered towers
+-- CITY of tiered towers
 local PALETTE = {
 	Color3.fromRGB(90, 96, 104),
 	Color3.fromRGB(120, 110, 100),
@@ -89,7 +115,7 @@ local function tower(cx: number, cz: number)
 	local baseY = 2
 	local color = PALETTE[math.random(#PALETTE)]
 	for _ = 1, tiers do
-		local h = rand(120, 340)
+		local h = rand(120, 320)
 		part({
 			Name = "Building",
 			Size = Vector3.new(w, h, d),
@@ -98,10 +124,9 @@ local function tower(cx: number, cz: number)
 			Material = Enum.Material.Concrete,
 		})
 		baseY += h
-		w = math.max(46, w - rand(24, 70))
-		d = math.max(46, d - rand(24, 70))
+		w = math.max(50, w - rand(24, 64))
+		d = math.max(50, d - rand(24, 64))
 	end
-	-- glowing crown so tall ones read against the skybox
 	part({
 		Name = "BuildingCrown",
 		Size = Vector3.new(w + 8, 5, d + 8),
@@ -111,20 +136,19 @@ local function tower(cx: number, cz: number)
 	})
 end
 
-local STEP = 620
-for gx = -CITY_EXTENT, CITY_EXTENT, STEP do
-	for gz = -CITY_EXTENT, CITY_EXTENT, STEP do
-		local x = gx + rand(-70, 70)
-		local z = gz + rand(-70, 70)
-		local nearSpawn = Vector2.new(x, z).Magnitude < 560
-		local onLane = math.abs(x) < LANE_HALF or math.abs(z) < LANE_HALF -- cross-shaped clear lanes
-		if not nearSpawn and not onLane then
+for gx = -CITY_HALF, CITY_HALF, CITY_STEP do
+	for gz = -CITY_HALF, CITY_HALF, CITY_STEP do
+		local x = gx + rand(-60, 60)
+		local z = gz + rand(-60, 60)
+		local clearOfSpawn = Vector2.new(x, z).Magnitude > 520
+		local offTheLanes = math.abs(x) > LANE_HALF and math.abs(z) > LANE_HALF
+		if clearOfSpawn and offTheLanes then
 			tower(x, z)
 		end
 	end
 end
 
--- ramps toward the rooftops
+-- RAMPS toward rooftop height
 local function ramp(pos: Vector3, rot: number, tilt: number, size: Vector3)
 	part({
 		Name = "Ramp",
@@ -139,7 +163,7 @@ ramp(Vector3.new(760, 46, 0), 90, -20, Vector3.new(64, 5, 280))
 ramp(Vector3.new(-760, 46, 0), 90, -20, Vector3.new(64, 5, 280))
 ramp(Vector3.new(0, 64, -940), 0, -24, Vector3.new(84, 6, 360))
 
--- launch pads: 4 around spawn + scattered across the map
+-- LAUNCH PADS: 4 around spawn + scattered
 local function launchPad(pos: Vector3, facing: number)
 	local p = part({
 		Name = "LaunchPad",
@@ -154,11 +178,11 @@ launchPad(Vector3.new(0, 3, 200), 0)
 launchPad(Vector3.new(200, 3, 0), -90)
 launchPad(Vector3.new(-200, 3, 0), 90)
 launchPad(Vector3.new(0, 3, -200), 180)
-for _ = 1, 14 do
-	launchPad(Vector3.new(rand(-3600, 3600), 3, rand(-3600, 3600)), rand(0, 360))
+for _ = 1, 16 do
+	launchPad(Vector3.new(rand(-4500, 4500), 3, rand(-4500, 4500)), rand(0, 360))
 end
 
--- bumpers scattered wide
+-- BUMPERS scattered wide
 local function bumper(pos: Vector3, sizeN: number)
 	local p = part({
 		Name = "Bumper",
@@ -170,12 +194,12 @@ local function bumper(pos: Vector3, sizeN: number)
 	})
 	CollectionService:AddTag(p, "Bumper")
 end
-for _ = 1, 22 do
+for _ = 1, 26 do
 	local s = rand(24, 46)
-	bumper(Vector3.new(rand(-3600, 3600), s / 2 + 4, rand(-3600, 3600)), s)
+	bumper(Vector3.new(rand(-4500, 4500), s / 2 + 4, rand(-4500, 4500)), s)
 end
 
--- speed rings: long lanes to chain together
+-- SPEED RINGS: long lanes to chain
 local function ringLane(startPos: Vector3, step: Vector3, count: number)
 	for i = 1, count do
 		local p = part({
@@ -191,11 +215,11 @@ local function ringLane(startPos: Vector3, step: Vector3, count: number)
 		CollectionService:AddTag(p, "SpeedRing")
 	end
 end
-ringLane(Vector3.new(-1900, 28, 0), Vector3.new(340, 0, 0), 12) -- along the X lane
-ringLane(Vector3.new(0, 28, -1900), Vector3.new(0, 0, 340), 12) -- along the Z lane
-ringLane(Vector3.new(-3600, 28, 2600), Vector3.new(320, 0, 0), 12) -- outskirts straight
+ringLane(Vector3.new(-2000, 28, 0), Vector3.new(360, 0, 0), 12) -- along the X lane
+ringLane(Vector3.new(0, 28, -2000), Vector3.new(0, 0, 360), 12) -- along the Z lane
+ringLane(Vector3.new(-4500, 28, 3200), Vector3.new(360, 0, 0), 14) -- outskirts straight
 
--- gamepass buy pad near spawn (inert until Config.GamepassId is set)
+-- GAMEPASS BUY PAD near spawn (inert until Config.GamepassId is set)
 local buy = part({
 	Name = "BuyPassPad",
 	Size = Vector3.new(20, 1, 20),
@@ -204,3 +228,6 @@ local buy = part({
 	Material = Enum.Material.Neon,
 })
 CollectionService:AddTag(buy, "BuyPassPad")
+
+print(("MapBuilder: built %d parts, floor edge at %d studs, walls at %d")
+	:format(#map:GetChildren(), floorEdge, WALL_HALF))
