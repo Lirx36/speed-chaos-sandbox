@@ -1,5 +1,5 @@
 --!strict
--- Builds a playable test map at runtime so the place works the moment you press Play.
+-- Builds a big city sandbox at runtime so the place is playable immediately.
 -- Delete this script once you've built your own map in Studio.
 local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
@@ -8,9 +8,15 @@ if Workspace:FindFirstChild("GeneratedMap") then
 	return
 end
 
+local FLOOR_SIZE = 8192 -- was 2048; the world is ~16x bigger now
+local CITY_EXTENT = 3200 -- buildings fill roughly this radius; open ground beyond it
+local LANE_HALF = 280 -- half-width of the clear speed lanes through the middle (X and Z)
+
 local map = Instance.new("Folder")
 map.Name = "GeneratedMap"
 map.Parent = Workspace
+
+math.randomseed(1337) -- fixed seed: the city looks the same every run
 
 local function part(props: { [string]: any }): BasePart
 	local p = Instance.new("Part")
@@ -24,12 +30,16 @@ local function part(props: { [string]: any }): BasePart
 	return p
 end
 
+local function rand(a: number, b: number): number
+	return a + math.random() * (b - a)
+end
+
 -- floor
 part({
 	Name = "Floor",
-	Size = Vector3.new(2048, 4, 2048),
+	Size = Vector3.new(FLOOR_SIZE, 4, FLOOR_SIZE),
 	Position = Vector3.new(0, 0, 0),
-	Color = Color3.fromRGB(58, 64, 72),
+	Color = Color3.fromRGB(52, 57, 64),
 	Material = Enum.Material.SmoothPlastic,
 })
 
@@ -37,92 +47,157 @@ part({
 local spawn = Instance.new("SpawnLocation")
 spawn.Name = "Spawn"
 spawn.Anchored = true
-spawn.Size = Vector3.new(16, 1, 16)
+spawn.Size = Vector3.new(24, 1, 24)
 spawn.Position = Vector3.new(0, 3, 0)
 spawn.Color = Color3.fromRGB(120, 200, 255)
 spawn.Material = Enum.Material.Neon
 spawn.Parent = map
 
 -- glass perimeter walls
-local dirs = { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) }
-for i, dir in dirs do
+local halfFloor = FLOOR_SIZE / 2
+for i, dir in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) } do
 	part({
 		Name = "Wall" .. i,
-		Size = Vector3.new(math.abs(dir.Z) * 2048 + 8, 60, math.abs(dir.X) * 2048 + 8),
-		Position = dir * 1024 + Vector3.new(0, 30, 0),
+		Size = Vector3.new(math.abs(dir.Z) * FLOOR_SIZE + 12, 240, math.abs(dir.X) * FLOOR_SIZE + 12),
+		Position = dir * halfFloor + Vector3.new(0, 120, 0),
 		Color = Color3.fromRGB(40, 44, 50),
-		Transparency = 0.5,
+		Transparency = 0.55,
 		Material = Enum.Material.Glass,
 	})
 end
 
--- ramps
-local function ramp(pos: Vector3, rot: number, tilt: number)
+-- city of tiered towers
+local PALETTE = {
+	Color3.fromRGB(90, 96, 104),
+	Color3.fromRGB(120, 110, 100),
+	Color3.fromRGB(70, 78, 92),
+	Color3.fromRGB(140, 140, 148),
+	Color3.fromRGB(96, 84, 78),
+}
+local ACCENTS = {
+	Color3.fromRGB(255, 120, 40),
+	Color3.fromRGB(60, 200, 255),
+	Color3.fromRGB(120, 255, 160),
+	Color3.fromRGB(255, 70, 120),
+}
+
+local function tower(cx: number, cz: number)
+	local tiers = math.random(1, 3)
+	local w, d = rand(130, 250), rand(130, 250)
+	local baseY = 2
+	local color = PALETTE[math.random(#PALETTE)]
+	for _ = 1, tiers do
+		local h = rand(120, 340)
+		part({
+			Name = "Building",
+			Size = Vector3.new(w, h, d),
+			Position = Vector3.new(cx, baseY + h / 2, cz),
+			Color = color,
+			Material = Enum.Material.Concrete,
+		})
+		baseY += h
+		w = math.max(46, w - rand(24, 70))
+		d = math.max(46, d - rand(24, 70))
+	end
+	-- glowing crown so tall ones read against the skybox
+	part({
+		Name = "BuildingCrown",
+		Size = Vector3.new(w + 8, 5, d + 8),
+		Position = Vector3.new(cx, baseY + 3, cz),
+		Color = ACCENTS[math.random(#ACCENTS)],
+		Material = Enum.Material.Neon,
+	})
+end
+
+local STEP = 620
+for gx = -CITY_EXTENT, CITY_EXTENT, STEP do
+	for gz = -CITY_EXTENT, CITY_EXTENT, STEP do
+		local x = gx + rand(-70, 70)
+		local z = gz + rand(-70, 70)
+		local nearSpawn = Vector2.new(x, z).Magnitude < 560
+		local onLane = math.abs(x) < LANE_HALF or math.abs(z) < LANE_HALF -- cross-shaped clear lanes
+		if not nearSpawn and not onLane then
+			tower(x, z)
+		end
+	end
+end
+
+-- ramps toward the rooftops
+local function ramp(pos: Vector3, rot: number, tilt: number, size: Vector3)
 	part({
 		Name = "Ramp",
-		Size = Vector3.new(40, 4, 90),
+		Size = size,
 		CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(rot), 0) * CFrame.Angles(math.rad(tilt), 0, 0),
-		Color = Color3.fromRGB(90, 100, 110),
+		Color = Color3.fromRGB(95, 105, 115),
 		Material = Enum.Material.Metal,
 	})
 end
-ramp(Vector3.new(0, 12, 220), 0, -18)
-ramp(Vector3.new(240, 12, -60), 90, -18)
-ramp(Vector3.new(-240, 20, -160), 55, -26)
+ramp(Vector3.new(0, 26, 520), 0, -16, Vector3.new(64, 5, 200))
+ramp(Vector3.new(760, 46, 0), 90, -20, Vector3.new(64, 5, 280))
+ramp(Vector3.new(-760, 46, 0), 90, -20, Vector3.new(64, 5, 280))
+ramp(Vector3.new(0, 64, -940), 0, -24, Vector3.new(84, 6, 360))
 
--- launch pads (orange)
+-- launch pads: 4 around spawn + scattered across the map
 local function launchPad(pos: Vector3, facing: number)
 	local p = part({
 		Name = "LaunchPad",
-		Size = Vector3.new(24, 2, 24),
+		Size = Vector3.new(28, 2, 28),
 		CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(facing), 0),
 		Color = Color3.fromRGB(255, 170, 40),
 		Material = Enum.Material.Neon,
 	})
 	CollectionService:AddTag(p, "LaunchPad")
 end
-launchPad(Vector3.new(0, 3, 380), 0)
-launchPad(Vector3.new(380, 3, 0), -90)
-launchPad(Vector3.new(-380, 3, 0), 90)
-launchPad(Vector3.new(0, 3, -380), 180)
+launchPad(Vector3.new(0, 3, 200), 0)
+launchPad(Vector3.new(200, 3, 0), -90)
+launchPad(Vector3.new(-200, 3, 0), 90)
+launchPad(Vector3.new(0, 3, -200), 180)
+for _ = 1, 14 do
+	launchPad(Vector3.new(rand(-3600, 3600), 3, rand(-3600, 3600)), rand(0, 360))
+end
 
--- bumpers (pink spheres)
-local function bumper(pos: Vector3)
+-- bumpers scattered wide
+local function bumper(pos: Vector3, sizeN: number)
 	local p = part({
 		Name = "Bumper",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(28, 28, 28),
+		Size = Vector3.new(sizeN, sizeN, sizeN),
 		Position = pos,
 		Color = Color3.fromRGB(255, 70, 120),
 		Material = Enum.Material.Neon,
 	})
 	CollectionService:AddTag(p, "Bumper")
 end
-bumper(Vector3.new(120, 14, 120))
-bumper(Vector3.new(-120, 14, 120))
-bumper(Vector3.new(120, 14, -120))
-bumper(Vector3.new(-140, 14, -60))
-
--- speed rings (green) along a lane
-for i = 1, 6 do
-	local p = part({
-		Name = "SpeedRing",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(2, 40, 40),
-		CFrame = CFrame.new(Vector3.new(-520, 22, -400 + i * 120)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(120, 255, 160),
-		Material = Enum.Material.Neon,
-		Transparency = 0.35,
-		CanCollide = false,
-	})
-	CollectionService:AddTag(p, "SpeedRing")
+for _ = 1, 22 do
+	local s = rand(24, 46)
+	bumper(Vector3.new(rand(-3600, 3600), s / 2 + 4, rand(-3600, 3600)), s)
 end
 
--- gamepass buy pad (gold) - only prompts once Config.GamepassId is set
+-- speed rings: long lanes to chain together
+local function ringLane(startPos: Vector3, step: Vector3, count: number)
+	for i = 1, count do
+		local p = part({
+			Name = "SpeedRing",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(2, 48, 48),
+			CFrame = CFrame.new(startPos + step * (i - 1)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(120, 255, 160),
+			Material = Enum.Material.Neon,
+			Transparency = 0.35,
+			CanCollide = false,
+		})
+		CollectionService:AddTag(p, "SpeedRing")
+	end
+end
+ringLane(Vector3.new(-1900, 28, 0), Vector3.new(340, 0, 0), 12) -- along the X lane
+ringLane(Vector3.new(0, 28, -1900), Vector3.new(0, 0, 340), 12) -- along the Z lane
+ringLane(Vector3.new(-3600, 28, 2600), Vector3.new(320, 0, 0), 12) -- outskirts straight
+
+-- gamepass buy pad near spawn (inert until Config.GamepassId is set)
 local buy = part({
 	Name = "BuyPassPad",
-	Size = Vector3.new(18, 1, 18),
-	Position = Vector3.new(44, 3, 0),
+	Size = Vector3.new(20, 1, 20),
+	Position = Vector3.new(60, 3, 0),
 	Color = Color3.fromRGB(255, 215, 0),
 	Material = Enum.Material.Neon,
 })
