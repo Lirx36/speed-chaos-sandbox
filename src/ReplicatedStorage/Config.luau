@@ -15,8 +15,9 @@ local Config = {
 	DoubleJumpPower = 52,
 
 	LaunchPadPower = 150,
-	BumperPower = 95,
-	BumperTumbleTime = 1.1, -- seconds you ragdoll/tumble after hitting a bumper
+	BumperPower = 230, -- how hard bumpers fling you straight away from their centre
+	BumperLift = 70, -- upward kick added on top, so you actually fly
+	BumperTumbleTime = 0.7, -- seconds you tumble after a hit (short = recover fast)
 	RingMomentumFill = 45, -- momentum granted by flying through a speed ring
 
 	GamepassId = 0, -- put your "Mega Momentum" gamepass id here. 0 = feature disabled.

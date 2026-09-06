@@ -61,8 +61,8 @@ local function bindBumper(bumper: BasePart)
 		if away.Magnitude < 0.1 then
 			away = Vector3.xAxis
 		end
-		root.AssemblyLinearVelocity = away.Unit * Config.BumperPower + Vector3.new(0, 45, 0)
-		root.AssemblyAngularVelocity = Vector3.new(math.random(-14, 14), math.random(-14, 14), math.random(-14, 14))
+		root.AssemblyLinearVelocity = away.Unit * Config.BumperPower + Vector3.new(0, Config.BumperLift, 0)
+		root.AssemblyAngularVelocity = Vector3.new(math.random(-20, 20), math.random(-20, 20), math.random(-20, 20))
 		hum.PlatformStand = true
 		task.delay(Config.BumperTumbleTime, function()
 			if hum.Parent then
