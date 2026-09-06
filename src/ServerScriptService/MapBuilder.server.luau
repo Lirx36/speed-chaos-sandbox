@@ -8,8 +8,6 @@ if Workspace:FindFirstChild("GeneratedMap") then
 	return
 end
 
-Workspace.FallenPartsDestroyHeight = -150
-
 local map = Instance.new("Folder")
 map.Name = "GeneratedMap"
 map.Parent = Workspace
