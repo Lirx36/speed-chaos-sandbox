@@ -23,8 +23,8 @@ addMomentum.Parent = ServerStorage
 type State = { momentum: number, sprinting: boolean }
 local states: { [Player]: State } = {}
 
-local function maxMomentum(player: Player): number
-	return player:GetAttribute("HasMomentumPass") and Config.MomentumMaxWithPass or Config.MomentumMax
+local function gainMultiplier(player: Player): number
+	return player:GetAttribute("HasMomentumPass") and Config.PassGainMultiplier or 1
 end
 
 local function onCharacter(player: Player, char: Model)
@@ -62,7 +62,7 @@ end)
 addMomentum.Event:Connect(function(player: Player, amount: number)
 	local st = states[player]
 	if st then
-		st.momentum = math.clamp(st.momentum + amount, 0, maxMomentum(player))
+		st.momentum = math.clamp(st.momentum + amount, 0, Config.MomentumHardCap)
 	end
 end)
 
@@ -80,11 +80,12 @@ RunService.Heartbeat:Connect(function(dt)
 		local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
 
 		if horizontal >= Config.MomentumMoveThreshold then
-			st.momentum += Config.MomentumGainPerSec * dt
+			st.momentum += Config.MomentumGainPerSec * gainMultiplier(player) * dt
 		else
-			st.momentum -= Config.MomentumDecayPerSec * dt
+			local drain = math.max(Config.MomentumDecayPerSec, st.momentum * Config.MomentumDecayFraction)
+			st.momentum -= drain * dt
 		end
-		st.momentum = math.clamp(st.momentum, 0, maxMomentum(player))
+		st.momentum = math.clamp(st.momentum, 0, Config.MomentumHardCap)
 
 		local target = Config.BaseWalkSpeed + st.momentum
 		if st.sprinting then
@@ -97,7 +98,8 @@ RunService.Heartbeat:Connect(function(dt)
 	if broadcastAccum >= 0.1 then
 		broadcastAccum = 0
 		for player, st in states do
-			momentumUpdate:FireClient(player, st.momentum, maxMomentum(player))
+			local percent = st.momentum / Config.MomentumPercentReference * 100
+			momentumUpdate:FireClient(player, st.momentum, percent)
 		end
 	end
 end)

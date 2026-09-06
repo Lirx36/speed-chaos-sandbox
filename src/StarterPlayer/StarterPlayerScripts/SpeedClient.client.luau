@@ -63,11 +63,13 @@ label.TextColor3 = Color3.fromRGB(255, 255, 255)
 label.Text = "MOMENTUM"
 label.Parent = holder
 
-momentumUpdate.OnClientEvent:Connect(function(momentum: number, maxMomentum: number)
-	local ratio = if maxMomentum > 0 then math.clamp(momentum / maxMomentum, 0, 1) else 0
-	fill.Size = UDim2.fromScale(ratio, 1)
-	fill.BackgroundColor3 = Color3.fromRGB(255, 170, 40):Lerp(Color3.fromRGB(120, 255, 160), ratio)
-	label.Text = string.format("MOMENTUM  %d%%", math.floor(ratio * 100 + 0.5))
+momentumUpdate.OnClientEvent:Connect(function(_momentum: number, percent: number)
+	-- no cap: the bar sweeps 0 -> full once per 100%, and the colour shifts each lap
+	local band = percent / 100
+	fill.Size = UDim2.fromScale(band % 1, 1)
+	local hue = (0.08 + math.max(0, band - 1) * 0.12) % 1
+	fill.BackgroundColor3 = Color3.fromHSV(hue, 0.85, 1)
+	label.Text = string.format("MOMENTUM  %d%%", math.floor(percent + 0.5))
 end)
 
 -- speed trail

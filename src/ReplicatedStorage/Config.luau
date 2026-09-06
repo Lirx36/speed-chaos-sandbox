@@ -4,11 +4,14 @@ local Config = {
 	BaseWalkSpeed = 24, -- Roblox default is 16
 	SprintBonus = 22, -- extra speed while holding sprint
 
-	MomentumMax = 100, -- how much bonus speed you can build up normally
-	MomentumMaxWithPass = 220, -- ...with the Mega Momentum gamepass
-	MomentumGainPerSec = 18, -- how fast momentum builds while moving
-	MomentumDecayPerSec = 40, -- how fast it drains when you slow down
+	-- Momentum has NO cap - it charges up forever while you keep moving.
+	MomentumGainPerSec = 18, -- bonus WalkSpeed added per second while moving
+	MomentumDecayPerSec = 40, -- flat drain per second when you slow down
+	MomentumDecayFraction = 0.6, -- when momentum is high, also lose this fraction of it per second
 	MomentumMoveThreshold = 12, -- min horizontal speed (studs/s) before momentum builds
+	MomentumPercentReference = 100, -- this much bonus speed reads as "100%" on the HUD
+	MomentumHardCap = math.huge, -- keep as math.huge for truly infinite; set a number if physics gets silly
+	PassGainMultiplier = 2, -- "Mega Momentum" gamepass: charge this many times faster
 
 	UseJumpPower = true,
 	JumpPower = 55,

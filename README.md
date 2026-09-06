@@ -2,8 +2,9 @@
 
 A Roblox sandbox where the fun *is* going stupid fast. Keep moving to build **momentum**
 (bonus WalkSpeed that stacks up), hold **Shift** to sprint, **double-jump**, and get flung
-around by launch pads, bumpers, and speed rings. There's an optional gamepass that raises
-your momentum ceiling — a normal perk, not a paywall.
+around by launch pads, bumpers, and speed rings. Momentum has no cap — it charges up
+forever while you keep moving. There's an optional gamepass that makes it charge faster —
+a normal perk, not a paywall.
 
 ## What's in here
 
@@ -89,11 +90,13 @@ rojo serve
 
 Everything is in `src/ReplicatedStorage/Config.luau`. Common tweaks:
 
-- **Feels too fast / clips through walls:** lower `MomentumMax` (try 60) and
-  `MomentumMaxWithPass` (try 140). Very high WalkSpeed makes the physics engine miss thin
-  walls — keep total speed under ~200 unless you want the chaos.
+- **Momentum has no ceiling** — it charges up forever while you keep moving, so WalkSpeed
+  can get absurd and the HUD % counts past 100 indefinitely. Roblox physics starts missing
+  thin walls past ~200 speed; if that bugs you, set `MomentumHardCap` to a number (e.g. 150)
+  instead of `math.huge`.
 - **Momentum builds too slowly:** raise `MomentumGainPerSec`, lower `MomentumMoveThreshold`.
-- **Momentum vanishes the instant you stop:** lower `MomentumDecayPerSec`.
+- **Momentum drains too fast / slow when you stop:** `MomentumDecayPerSec` (flat) and
+  `MomentumDecayFraction` (proportional — matters most when you're going fast).
 - **Launch pads too weak/strong:** `LaunchPadPower`.
 
 ## The optional gamepass
@@ -101,9 +104,9 @@ Everything is in `src/ReplicatedStorage/Config.luau`. Common tweaks:
 1. In Studio: **Game Settings** or the Creator Dashboard → create a **Game Pass** called
    e.g. "Mega Momentum", set a price.
 2. Copy its ID into `Config.GamepassId`.
-3. That's it — `GamepassService` grants owners the higher `MomentumMaxWithPass` ceiling, and
-   the gold pad in the test map (`BuyPassPad`) prompts the purchase. With `GamepassId = 0`
-   the pad and perk are simply inert.
+3. That's it — `GamepassService` makes owners charge momentum `PassGainMultiplier`x faster
+   (default 2x), and the gold pad in the test map (`BuyPassPad`) prompts the purchase. With
+   `GamepassId = 0` the pad and perk are simply inert.
 
 Keep it a perk. Roblox prohibits requiring payment to escape a bad game state; a pass that
 just makes a fun thing *more* fun is fine.
